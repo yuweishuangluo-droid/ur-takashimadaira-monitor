@@ -1,0 +1,14 @@
+name: UR高島平1LDK監視
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: テスト
+        run: echo "UR監視プログラムを起動しました"
