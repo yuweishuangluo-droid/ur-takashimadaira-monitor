@@ -22,35 +22,48 @@ jobs:
       - name: 必要なパッケージのインストール
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          pip install requests
 
       - name: UR空室チェック＆Discord通知を実行
         run: |
           python -c '
           import requests
-          import json
 
           webhook_url = "https://discord.com/api/webhooks/1548194895590596708/QRVcS-S6RjWeaxWHqRy2MQhB6wZP_2HRHnMLgfK-PHJSqcvoed3Ah3ctSO0nPo274jqp"
 
-          # UR賃貸の関東（東京・高島平周辺）空室確認API/ページ
-          # ※UR公式の検索リクエストエンドポイント
-          ur_api_url = "https://www.ur-net.go.jp/chintai/kanto/tokyo/20_4000.html"
+          # 高島平（団地コード: 20_2250）の空室詳細APIエンドポイント
+          api_url = "https://www.ur-net.go.jp/chintai/kanto/tokyo/20_2250_room.json"
           
           headers = {
-              "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
+              "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+              "Referer": "https://www.ur-net.go.jp/chintai/kanto/tokyo/20_2250.html"
           }
 
           try:
-              res = requests.get(ur_api_url, headers=headers, timeout=15)
+              res = requests.get(api_url, headers=headers, timeout=15)
               
-              # 空室判定ロジック（高島平・1LDKの空き部屋検出）
-              # ※ページ内に該当の部屋情報が存在するかチェック
-              if "1LDK" in res.text and "高島平" in res.text:
-                  message = f"🚨 **【UR高島平】1LDKの空室が見つかりました！**\n\n今すぐ確認してください！\n🔗 {ur_api_url}"
-                  requests.post(webhook_url, json={"content": message})
-                  print("空室を検知し、Discordに通知しました！")
+              if res.status_code == 200:
+                  rooms = res.json()
+                  matched_rooms = []
+
+                  # 空室リストから1LDKの部屋を抽出
+                  for room in rooms:
+                      madori = room.get("madori", "")
+                      if "1LDK" in madori:
+                          room_name = room.get("roomName", "名称不明")
+                          rent = room.get("rent", "家賃不明")
+                          matched_rooms.append(f"・{room_name} ({madori}): {rent}")
+
+                  if matched_rooms:
+                      room_details = "\n".join(matched_rooms)
+                      message = f"🚨 **【UR高島平】1LDKの空室が見つかりました！**\n\n【対象部屋】\n{room_details}\n\n🔗 https://www.ur-net.go.jp/chintai/kanto/tokyo/20_2250.html"
+                      requests.post(webhook_url, json={"content": message})
+                      print("空室を検知し、Discordに通知しました！")
+                  else:
+                      print("現在、高島平に1LDKの空室はありません。")
               else:
-                  print("現在、該当する空室はありません。")
+                  print(f"API取得失敗（ステータスコード: {res.status_code}）")
+
           except Exception as e:
               print(f"エラーが発生しました: {e}")
           '
