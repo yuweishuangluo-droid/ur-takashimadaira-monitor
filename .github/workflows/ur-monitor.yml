@@ -42,17 +42,28 @@ jobs:
               res.raise_for_status()
               soup = BeautifulSoup(res.text, "html.parser")
 
-              # ページ内のテキストを判定
-              page_text = soup.get_text()
+              html_text = res.text
+              has_1ldk = False
 
-              # 空室情報エリアの簡易判定（1LDKが含まれるか）
-              if "1LDK" in page_text:
-                  print("ページ取得成功：1LDK関連の記述を検出しました。")
-                  # 必要に応じて通知
-                  # message = f"🚨 **【UR高島平】1LDKの空室情報を検知しました！**\n\n🔗 {target_url}"
-                  # requests.post(webhook_url, json={"content": message})
+              # 「空室情報」セクションのみを抽出して誤検知（概要欄や近隣物件）を防止
+              if "空室情報" in html_text:
+                  vacant_section = html_text.split("空室情報")[1]
+
+                  # 後続の不要なエリアをカット
+                  for delimiter in ["お問い合わせはこちら", "近隣の部屋を見る", "周辺情報などをもっと知る"]:
+                      if delimiter in vacant_section:
+                          vacant_section = vacant_section.split(delimiter)[0]
+
+                  # 「ご案内できるお部屋がございません」がなく、かつ「1LDK」が含まれている場合のみ判定
+                  if "ご案内できるお部屋がございません" not in vacant_section and "1LDK" in vacant_section:
+                      has_1ldk = True
+
+              if has_1ldk:
+                  message = f"🚨 **【UR高島平】1LDKの空室が出ました！**\n\n今すぐ確認・申し込みを行ってください！\n🔗 {target_url}"
+                  requests.post(webhook_url, json={"content": message})
+                  print("1LDKの空室を検知し、Discordに通知を送りました！")
               else:
-                  print("ページ取得成功：現在、1LDKの掲載はありません。")
+                  print("現在「空室情報」エリアに1LDKの空き部屋はありません。")
 
           except Exception as e:
               print(f"エラーが発生しました: {e}")
